@@ -23,6 +23,7 @@ public class AcademicClass {
 
     @Column(unique = true)
     @NotBlank(message = "Please, fill the required fields")
+    @CustomAnnotation
     private String classNumber;
     @JsonIgnore
 

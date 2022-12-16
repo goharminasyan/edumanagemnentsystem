@@ -7,19 +7,21 @@ import com.epam.edumanagementsystem.admin.model.entity.AcademicClass;
 import com.epam.edumanagementsystem.admin.model.entity.AcademicCourse;
 import com.epam.edumanagementsystem.admin.rest.service.AcademicClassService;
 import com.epam.edumanagementsystem.admin.rest.service.AcademicCourseService;
-import com.epam.edumanagementsystem.admin.timetable.rest.service.CoursesForTimetableService;
-import com.epam.edumanagementsystem.admin.timetable.rest.service.TimetableService;
 import com.epam.edumanagementsystem.student.model.entity.Student;
 import com.epam.edumanagementsystem.student.rest.service.StudentService;
 import com.epam.edumanagementsystem.teacher.model.entity.Teacher;
-import com.epam.edumanagementsystem.util.InputFieldsValidation;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.validation.Valid;
 import java.net.URLDecoder;
@@ -27,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/classes")
@@ -36,16 +39,13 @@ public class AcademicClassController {
     private final AcademicClassService academicClassService;
     private final AcademicCourseService academicCourseService;
     private final StudentService studentService;
-    private final TimetableService timetableService;
-    private final CoursesForTimetableService coursesForTimetableService;
 
     @Autowired
-    public AcademicClassController(AcademicClassService academicClassService, AcademicCourseService academicCourseService, StudentService studentService, TimetableService timetableService, CoursesForTimetableService coursesForTimetableService) {
+    public AcademicClassController(AcademicClassService academicClassService, AcademicCourseService academicCourseService,
+                                   StudentService studentService) {
         this.academicClassService = academicClassService;
         this.academicCourseService = academicCourseService;
         this.studentService = studentService;
-        this.timetableService = timetableService;
-        this.coursesForTimetableService = coursesForTimetableService;
     }
 
     @GetMapping
@@ -60,22 +60,23 @@ public class AcademicClassController {
 
     @PostMapping
     @Operation(summary = "Saves the created academic class")
+    //todo don't accept entinities in controller, rather use dtos'
     public String create(@ModelAttribute("academicClass") @Valid AcademicClass academicClass,
                          BindingResult result, Model model) {
 
         List<AcademicClassDto> academicClassDtoList = academicClassService.findAll();
         List<AcademicClass> academicClassList = AcademicClassMapper.academicClassessList(academicClassDtoList);
         model.addAttribute("academicClasses", academicClassDtoList);
-
-        if (!result.hasFieldErrors("classNumber")) {
-            if (InputFieldsValidation.validateInputFieldSize(academicClass.getClassNumber())) {
-                model.addAttribute("nameSize", "Symbols can't be more than 50");
-            }
-            if (InputFieldsValidation.checkingForIllegalCharacters(academicClass
-                    .getClassNumber(), model)) {
-                model.addAttribute("invalidURL", "<>-_`*,:|() symbols can be used.");
-            }
-        }
+        //todo replace this validation logic with hibernate validators
+//        if (!result.hasFieldErrors("classNumber")) {
+//            if (InputFieldsValidation.validateInputFieldSize(academicClass.getClassNumber())) {
+//                model.addAttribute("nameSize", "Symbols can't be more than 50");
+//            }
+//            if (InputFieldsValidation.checkingForIllegalCharacters(academicClass
+//                    .getClassNumber(), model)) {
+//                model.addAttribute("invalidURL", "<>-_`*,:|() symbols can be used.");
+//            }
+//        }
 
         if (result.hasErrors() || model.containsAttribute("nameSize") || model.containsAttribute("invalidURL")) {
             return "academicClassSection";
@@ -90,6 +91,7 @@ public class AcademicClassController {
         if (result.hasErrors()) {
             return "academicClassSection";
         } else {
+            //todo, what is the meaning to use encoding and decoding for class number
             String decoded = URLDecoder.decode(academicClass.getClassNumber(), StandardCharsets.UTF_8);
             academicClass.setClassNumber(decoded);
             academicClassService.create(academicClass);
@@ -100,14 +102,24 @@ public class AcademicClassController {
     @GetMapping("/{name}/courses")
     @Operation(summary = "Shows academic courses in academic class section")
     public String openAcademicClassForAcademicCourse(@PathVariable("name") String name, Model model) {
-        List<AcademicCourse> coursesForSelection = new ArrayList<>();
         List<AcademicCourse> academicCoursesInClass = academicClassService.findAllAcademicCourses(name);
         Set<Teacher> allTeachersByAcademicCourse = academicCourseService.findAllTeacher();
         List<AcademicCourse> allCourses = AcademicCourseMapper.toListOfAcademicCourses(academicCourseService.findAll());
         model.addAttribute("academicCourseSet", academicCoursesInClass);
         model.addAttribute("allTeacherByAcademicCourse", allTeachersByAcademicCourse);
         model.addAttribute("existingClass", new AcademicClass());
+        List<Set<Teacher>> coursesForSelection;
+
+
+        //todo explain the logic of this code snippet
         if (academicCoursesInClass.size() == 0) {
+            coursesForSelection = allCourses.stream()
+                    .map(AcademicCourse::getTeacher)
+                    .filter(teachers -> teachers.size() > 0)
+                    .collect(Collectors.toList());
+
+
+            //todo use streams and functional programming
             for (AcademicCourse course : allCourses) {
                 if (course.getTeacher().size() > 0) {
                     coursesForSelection.add(course);
@@ -156,7 +168,10 @@ public class AcademicClassController {
         } else if (academicClass.getAcademicCourseSet().size() == 0) {
             model.addAttribute("blankClass", "Please, select the required fields");
             return "academicCourseForAcademicClass";
-        } else if (academicClass.getTeacher() == null) {
+
+        }
+        //todo: use annotation to check if the teacher list is empty or not
+        else if (academicClass.getTeacher() == null) {
             model.addAttribute("blank", "Please, select the required fields");
             return "academicCourseForAcademicClass";
         } else {
@@ -173,7 +188,7 @@ public class AcademicClassController {
     public String classroomTeacherForAcademicClass(@PathVariable("name") String name, Model model) {
         AcademicClass academicClassByName = academicClassService.findByName(name);
         Set<Teacher> allTeachersInClassName = academicClassByName.getTeacher();
-        List<AcademicClassDto> allClasses = academicClassService.findAll();
+        List<AcademicClassDto> allClasses = academicClassService.findAllByTeacher();
 
         for (AcademicClassDto allClass : allClasses) {
             if (allClass.getClassroomTeacher() != null) {
@@ -183,12 +198,11 @@ public class AcademicClassController {
 
         model.addAttribute("existingClassroomTeacher", new AcademicClass());
         model.addAttribute("teachers", allTeachersInClassName);
-        if (academicClassByName.getClassroomTeacher() == null) {
-            return "classroomTeacherSection";
-        } else {
+        if (academicClassByName.getClassroomTeacher() != null) {
             model.addAttribute("classroomTeacher", academicClassByName.getClassroomTeacher());
-            return "classroomTeacherSection";
         }
+        return "classroomTeacherSection";
+
     }
 
     @PostMapping("{name}/classroom")
@@ -203,6 +217,7 @@ public class AcademicClassController {
             model.addAttribute("blank", "Please, select the required fields");
             return "classroomTeacherSection";
         }
+        //todo: don't use repository find all rather filter out the results when calling the repository method
         for (AcademicClassDto academicClassDto : academicClassService.findAll()) {
             if (academicClass.getClassroomTeacher()
                     .equals(academicClassDto.getClassroomTeacher())) {
@@ -221,10 +236,12 @@ public class AcademicClassController {
     public String showAcademicClassStudents(@PathVariable("name") String name, Model model) {
         Long id = academicClassService.findByName(name).getId();
         model.addAttribute("studentsInAcademicClass", studentService.findByAcademicClassId(id));
+        //todo: method names should be verbs
         model.addAttribute("students", studentService.studentsWithoutConnectionWithClass());
         return "academicClassSectionForStudents";
     }
 
+    //todo: students endpoint but addNewTeacher, the endpoint name should match with the method name
     @PostMapping("{name}/students")
     public String addNewTeacher(@ModelAttribute("existingAcademicClass") AcademicClass academicClass,
                                 @PathVariable("name") String name, Model model) {
@@ -259,6 +276,6 @@ public class AcademicClassController {
     public Object journal(Model model, @PathVariable("name") String name,
                           @RequestParam(name = "date", required = false) String date,
                           @RequestParam(name = "startDate", required = false) String startDate) {
-       return academicClassService.journal(model, date,startDate,name);
+        return academicClassService.journal(model, date, startDate, name);
     }
 }

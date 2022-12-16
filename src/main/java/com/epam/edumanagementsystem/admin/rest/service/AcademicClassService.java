@@ -20,6 +20,8 @@ public interface AcademicClassService {
 
     AcademicClass findByName(String name);
 
+    AcademicClass removeByTeacherName(String teacherName);
+
     AcademicClass update(AcademicClass academicClass);
 
     List<AcademicCourse> findAllAcademicCourses(String name);

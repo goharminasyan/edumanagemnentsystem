@@ -57,6 +57,11 @@ public class AcademicClassServiceImpl implements AcademicClassService {
     }
 
     @Override
+    public AcademicClass removeByTeacherName(String teacherName) {
+        return academicClassRepository.removeByTeacherName(teacherName);
+    }
+
+    @Override
     public AcademicClass update(AcademicClass academicClass) {
         AcademicClass updateAcademicClass = findByName(academicClass.getClassNumber());
         if (academicClass.getClassNumber() != null) {
@@ -111,6 +116,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
 
     @Override
     public LocalDate recurs(LocalDate localDate) {
+        //todo: use constants instead of hard coded strings
         if (!localDate.getDayOfWeek().toString().equals("MONDAY")) {
             localDate = localDate.minusDays(1);
             localDate = recurs(localDate);
@@ -120,8 +126,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
 
     @Override
     public List<AcademicClassDto> findAll() {
-        List<AcademicClass> academicClassList = academicClassRepository.findAll();
-        return AcademicClassMapper.academicClassDtoList(academicClassList);
+        return AcademicClassMapper.academicClassDtoList(academicClassRepository.findAll());
     }
 
     @Override
@@ -144,6 +149,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
             LocalDate journalStartDate = null;
 
             if (startDate != null) {
+
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
                 LocalDate localdate = LocalDate.parse(startDate, formatter);
                 if (!localdate.isAfter(timetableEndDate) && !localdate.isBefore(timetableStartDate)) {
@@ -160,6 +166,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                     journalStartDate = LocalDate.now();
                 }
             }
+            //todo: refactor
             journalStartDate = recurs(journalStartDate);
             List<AcademicCourse> academicCoursesInClass = findAllAcademicCourses(name);
             model.addAttribute("allCoursesInAcademicClass", academicCoursesInClass);
